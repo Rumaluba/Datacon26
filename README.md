@@ -52,8 +52,7 @@ Gemini и Claude.
 
 Клонирование репозитория:
 
-git clone https://github.com/yourusername/chemx-extractor.git
-cd chemx-extractor
+git clone https://github.com/Rumaluba/Datacon26
 
 Создание виртуального окружения:
 

@@ -324,7 +324,7 @@ html, body, [data-testid="stAppViewContainer"] {
 # Page header
 st.markdown("""
 <div class="page-header">
-  <h1>ChemX Extractor</h1>
+  <h1>🧪 ChemX Extractor</h1>
   <p>Automated chemical data extraction from scientific PDFs · DataCon 2026</p>
 </div>
 """, unsafe_allow_html=True)
@@ -1162,44 +1162,81 @@ with tab_evaluate:
         label_visibility="collapsed",
     )
 
-    if pred_file and gold_file and st.button("Compute F1"):
+    if pred_file and gold_file:
+        # Загружаем данные для проверки
         pred_df = pd.read_csv(pred_file)
         if gold_file.name.endswith(".parquet"):
             gold_df = pd.read_parquet(gold_file)
         else:
             gold_df = pd.read_csv(gold_file)
-
+        
+        # Показываем информацию о загруженных файлах
+        st.markdown("### 📋 Информация о файлах")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**Predictions:** {len(pred_df)} строк")
+            st.write(f"Колонки: {list(pred_df.columns)[:5]}...")
+        with col2:
+            st.write(f"**Gold:** {len(gold_df)} строк")
+            st.write(f"Колонки: {list(gold_df.columns)[:5]}...")
+        
+        # Проверяем общие поля
         fields = DATASETS[eval_dataset]["fields"]
-        metrics = compute_macro_f1(pred_df, gold_df, fields)
-
-        st.markdown('<div class="section-label">Metrics</div>', unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Macro-F1", metrics["macro_f1"])
-        c2.metric("Precision", metrics["precision"])
-        c3.metric("Recall", metrics["recall"])
-        st.caption(f"Predicted: {metrics['n_pred']}  ·  Gold: {metrics['n_gold']}")
-
-        baselines = {
-            "EyeDrops": None,
-            "Benzimidazoles": 0.217,
-            "Oxazolidinones": 0.491,
-            "Co-crystals": 0.296,
-            "Complexes": 0.290,
-            "Nanozymes": 0.164,
-            "Synergy": 0.080,
-            "Nanomag": 0.034,
-            "Cytotox": 0.182,
-            "SelTox": 0.045,
-        }
-        bl = baselines.get(eval_dataset)
-        if bl:
-            diff = metrics["macro_f1"] - bl
-            sign = "+" if diff >= 0 else ""
-            color = "#10b981" if diff >= 0 else "#ef4444"
-            st.markdown(
-                f'<p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.75rem;">'
-                f'Single-agent baseline: <span style="color:var(--text);font-family:var(--mono)">{bl}</span>'
-                f' &nbsp;·&nbsp; Delta: <span style="color:{color};font-family:var(--mono);font-weight:600">{sign}{diff:.4f}</span>'
-                f'</p>',
-                unsafe_allow_html=True,
-            )
+        common = [f for f in fields if f in pred_df.columns and f in gold_df.columns]
+        if common:
+            st.success(f"✅ Общие поля для сравнения: {common}")
+        else:
+            st.error(f"❌ Нет общих полей! Поля датасета: {fields}")
+            st.write("Поля в Predictions:", list(pred_df.columns))
+            st.write("Поля в Gold:", list(gold_df.columns))
+        
+        if st.button("📊 Compute F1", type="primary"):
+            with st.spinner("Вычисление метрик..."):
+                try:
+                    metrics = compute_macro_f1(pred_df, gold_df, fields)
+                    
+                    if "error" in metrics:
+                        st.error(metrics["error"])
+                    else:
+                        st.markdown('<div class="section-label">📈 Results</div>', unsafe_allow_html=True)
+                        
+                        c1, c2, c3 = st.columns(3)
+                        with c1:
+                            st.metric("Macro-F1", f"{metrics['macro_f1']:.4f}")
+                        with c2:
+                            st.metric("Precision", f"{metrics.get('precision', 0):.4f}")
+                        with c3:
+                            st.metric("Recall", f"{metrics.get('recall', 0):.4f}")
+                        
+                        st.caption(f"Predicted: {metrics['n_pred']}  ·  Gold: {metrics['n_gold']}")
+                        
+                        # Сравнение с бейзлайном
+                        baselines = {
+                            "Benzimidazoles": 0.217,
+                            "Oxazolidinones": 0.491,
+                            "Co-crystals": 0.296,
+                            "Complexes": 0.290,
+                            "Nanozymes": 0.164,
+                            "Synergy": 0.080,
+                            "Nanomag": 0.034,
+                            "Cytotox": 0.182,
+                            "SelTox": 0.045,
+                        }
+                        bl = baselines.get(eval_dataset)
+                        if bl:
+                            diff = metrics["macro_f1"] - bl
+                            sign = "+" if diff >= 0 else ""
+                            color = "#10b981" if diff >= 0 else "#ef4444"
+                            st.markdown(
+                                f'<p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.75rem;">'
+                                f'Single-agent baseline: <span style="color:var(--text);font-family:var(--mono)">{bl}</span>'
+                                f' &nbsp;·&nbsp; Delta: <span style="color:{color};font-family:var(--mono);font-weight:600">{sign}{diff:.4f}</span>'
+                                f'</p>',
+                                unsafe_allow_html=True,
+                            )
+                except Exception as e:
+                    st.error(f"❌ Ошибка при вычислении: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
+    else:
+        st.info("📥 Загрузите файлы Predictions и Gold standard для оценки")
